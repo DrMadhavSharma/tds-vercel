@@ -43,4 +43,5 @@ async def metrics(payload: dict):
             "breaches": sum(1 for x in latencies if x > threshold)
         }
 
-    return result
+    return {
+    "regions": result }

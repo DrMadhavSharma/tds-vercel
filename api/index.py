@@ -14,7 +14,10 @@ app.add_middleware(
 
 with open("q-vercel-latency.json") as f:
     DATA = json.load(f)
-
+    
+@app.get("/")
+async def health():
+    return {"status": "ok"}
 @app.post("/")
 async def metrics(payload: dict):
     regions = payload["regions"]

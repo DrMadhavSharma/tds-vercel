@@ -12,7 +12,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-with open("q-vercel-latency.json") as f:
+from pathlib import Path
+
+DATA_FILE = Path(__file__).resolve().parent.parent / "q-vercel-latency.json"
+
+with open(DATA_FILE) as f:
     DATA = json.load(f)
     
 @app.get("/")

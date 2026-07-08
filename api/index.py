@@ -377,11 +377,10 @@ async def logs(limit: int = Query(10)):
 from typing import Optional
 from fastapi import Header
 
-@app.get("/orders")
-async def list_orders(
-    limit: int = Query(10),
-    cursor: Optional[str] = None,
-    x_client_id: Optional[str] = Header(None, alias="X-Client-Id"),
+@app.post("/orders")
+async def create_order(
+    request: Request,
+    response: Response,
 ):
     global NEXT_ORDER_ID
 
@@ -407,10 +406,14 @@ async def list_orders(
 
     response.status_code = 201
     return order
+from typing import Optional
+from fastapi import Header
+
 @app.get("/orders")
 async def list_orders(
     limit: int = Query(10),
-    cursor: str | None = None,
+    cursor: Optional[str] = None,
+    x_client_id: Optional[str] = Header(None, alias="X-Client-Id"),
 ):
     start = 0
 

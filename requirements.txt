@@ -4,3 +4,5 @@ numpy
 vercel
 pyjwt 
 cryptography
+PyYAML
+python-dotenv

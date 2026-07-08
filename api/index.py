@@ -1,4 +1,4 @@
-
+from fastapi import Header, HTTPException
 from fastapi import FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -65,10 +65,17 @@ SI6iyrYbKR0NEBSqq4XkadEjsCs4F1RncsS4LlgniT7GlkL9Mce3b0wGLs9/7ZIX
 dQIDAQAB
 -----END PUBLIC KEY-----
 """
-
+API_KEY = "ak_fjkk4xvbqfsfey6x07qpw5xy"
 class TokenRequest(BaseModel):
     token: str
+class Event(BaseModel):
+    user: str
+    amount: float
+    ts: int
 
+
+class AnalyticsRequest(BaseModel):
+    events: list[Event]
 # -------------------- Health Endpoint --------------------
 @app.get("/")
 async def health():
@@ -225,4 +232,43 @@ async def effective_config(set: list[str] = Query(default=[])):
         "debug": config["debug"],
         "log_level": config["log_level"],
         "api_key": config["api_key"],
+    }
+@app.post("/analytics")
+async def analytics(
+    data: AnalyticsRequest,
+    x_api_key: str = Header(None)
+):
+    # Authentication
+    if x_api_key != API_KEY:
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized"
+        )
+
+    events = data.events
+
+    total_events = len(events)
+
+    unique_users = len(set(event.user for event in events))
+
+    revenue = sum(
+        event.amount
+        for event in events
+        if event.amount > 0
+    )
+
+    totals = {}
+
+    for event in events:
+        if event.amount > 0:
+            totals[event.user] = totals.get(event.user, 0) + event.amount
+
+    top_user = max(totals, key=totals.get) if totals else ""
+
+    return {
+        "email": "23f3004142@ds.study.iitm.ac.in",
+        "total_events": total_events,
+        "unique_users": unique_users,
+        "revenue": revenue,
+        "top_user": top_user,
     }

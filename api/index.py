@@ -7,6 +7,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
+import base64
+from collections import defaultdict, deque
+from fastapi import Response
 
 import jwt
 import json
@@ -35,6 +38,25 @@ app.add_middleware(
 class HeaderMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         start = time.perf_counter()
+        client = request.headers.get("X-Client-Id")
+        if client:
+                 now = time.time()
+
+                bucket = CLIENT_BUCKETS[client]
+            
+                while bucket and now - bucket[0] > WINDOW_SECONDS:
+                    bucket.popleft()
+            
+                if len(bucket) >= RATE_LIMIT:
+                    return JSONResponse(
+                        status_code=429,
+                        content={"detail": "Rate limit exceeded"},
+                        headers={
+                            "Retry-After": "10"
+                        }
+                    )
+            
+                bucket.append(now)
 
         REQUEST_COUNTER.inc()
 
@@ -89,6 +111,30 @@ REQUEST_COUNTER = Counter(
 )
 
 LOGS = deque(maxlen=1000)
+# -------------------- Orders Assignment --------------------
+
+TOTAL_ORDERS = 54
+RATE_LIMIT = 17
+WINDOW_SECONDS = 10
+
+IDEMPOTENCY_STORE = {}
+
+CLIENT_BUCKETS = defaultdict(deque)
+
+NEXT_ORDER_ID = 1
+
+def encode_cursor(index: int) -> str:
+    return base64.b64encode(str(index).encode()).decode()
+
+
+def decode_cursor(cursor: str) -> int:
+    try:
+        return int(base64.b64decode(cursor.encode()).decode())
+    except Exception:
+        return 0
+
+
+
 
 class TokenRequest(BaseModel):
     token: str
@@ -320,3 +366,58 @@ async def healthz():
 @app.get("/logs/tail")
 async def logs(limit: int = Query(10)):
     return list(LOGS)[-limit:]
+
+@app.post("/orders", status_code=201)
+async def create_order(
+    request: Request,
+    response: Response,
+):
+    global NEXT_ORDER_ID
+
+    key = request.headers.get("Idempotency-Key")
+
+    if not key:
+        raise HTTPException(
+            status_code=400,
+            detail="Missing Idempotency-Key"
+        )
+
+    if key in IDEMPOTENCY_STORE:
+        return IDEMPOTENCY_STORE[key]
+
+    order = {
+        "id": NEXT_ORDER_ID
+    }
+
+    NEXT_ORDER_ID += 1
+
+    IDEMPOTENCY_STORE[key] = order
+
+    return order
+
+@app.get("/orders")
+async def list_orders(
+    limit: int = Query(10),
+    cursor: str | None = None,
+):
+    start = 0
+
+    if cursor:
+        start = decode_cursor(cursor)
+
+    end = min(start + limit, TOTAL_ORDERS)
+
+    items = [
+        {"id": i}
+        for i in range(start + 1, end + 1)
+    ]
+
+    next_cursor = None
+
+    if end < TOTAL_ORDERS:
+        next_cursor = encode_cursor(end)
+
+    return {
+        "items": items,
+        "next_cursor": next_cursor,
+    }

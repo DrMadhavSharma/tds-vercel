@@ -374,7 +374,7 @@ async def healthz():
 async def logs(limit: int = Query(10)):
     return list(LOGS)[-limit:]
 
-@app.post("/orders", status_code=201)
+@app.post("/orders")
 async def create_order(
     request: Request,
     response: Response,
@@ -390,6 +390,7 @@ async def create_order(
         )
 
     if key in IDEMPOTENCY_STORE:
+        response.status_code = 200
         return IDEMPOTENCY_STORE[key]
 
     order = {
@@ -400,8 +401,8 @@ async def create_order(
 
     IDEMPOTENCY_STORE[key] = order
 
+    response.status_code = 201
     return order
-
 @app.get("/orders")
 async def list_orders(
     limit: int = Query(10),

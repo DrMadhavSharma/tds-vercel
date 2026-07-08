@@ -25,11 +25,11 @@ from pathlib import Path
 app = FastAPI()
 
 # -------------------- CORS --------------------
-ALLOWED_ORIGIN = ["https://dash-jofexd.example.com","https://exam.sanand.workers.dev"]
+# ALLOWED_ORIGIN = ["https://dash-jofexd.example.com","https://exam.sanand.workers.dev"]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGIN,
+    allow_origins=["*"],
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )

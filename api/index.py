@@ -228,7 +228,7 @@ async def stats(values: str = Query(...)):
     nums = [int(x.strip()) for x in values.split(",") if x.strip()]
 
     return {
-        "email": "YOUR_EMAIL_HERE",
+        "email": "23f3004142@ds.study.iitm.ac.in",
         "count": len(nums),
         "sum": sum(nums),
         "min": min(nums),

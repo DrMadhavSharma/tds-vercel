@@ -138,11 +138,11 @@ async def verify(data: TokenRequest):
 # -------------------- 12-Factor Config Assignment --------------------
 
 DEFAULT_CONFIG = {
-"port": 8000,
-"workers": 1,
-"debug": False,
-"log_level": "info",
-"api_key": "default-secret-000",
+    "port": 8000,
+    "workers": 1,
+    "debug": False,
+    "log_level": "info",
+    "api_key": "default-secret-000",
 }
 
 CONFIG_FILE = Path(__file__).resolve().parent.parent / "config.development.yaml"
@@ -150,79 +150,79 @@ ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
 
 
 def parse_bool(value):
-return str(value).strip().lower() in (
-    "true",
-    "1",
-    "yes",
-    "on",
-)
+    return str(value).strip().lower() in (
+        "true",
+        "1",
+        "yes",
+        "on",
+    )
 
 
 def coerce(key, value):
-if key in ("port", "workers"):
-    return int(value)
+    if key in ("port", "workers"):
+        return int(value)
 
-if key == "debug":
-    return parse_bool(value)
+    if key == "debug":
+        return parse_bool(value)
 
-return str(value)
+    return str(value)
 
 
 @app.get("/effective-config")
 async def effective_config(set: list[str] = Query(default=[])):
-# Layer 1 : Defaults
-config = DEFAULT_CONFIG.copy()
+    # Layer 1 : Defaults
+    config = DEFAULT_CONFIG.copy()
 
-# Layer 2 : config.development.yaml
-if CONFIG_FILE.exists():
-    with open(CONFIG_FILE, "r") as f:
-        yaml_config = yaml.safe_load(f) or {}
+    # Layer 2 : config.development.yaml
+    if CONFIG_FILE.exists():
+        with open(CONFIG_FILE, "r") as f:
+            yaml_config = yaml.safe_load(f) or {}
 
-    for key, value in yaml_config.items():
-        config[key] = coerce(key, value)
-
-# Layer 3 : .env
-if ENV_FILE.exists():
-    env_config = dotenv_values(ENV_FILE)
-
-    # Alias NUM_WORKERS -> workers
-    if "NUM_WORKERS" in env_config:
-        env_config["workers"] = env_config.pop("NUM_WORKERS")
-
-    for key, value in env_config.items():
-        if value is not None:
+        for key, value in yaml_config.items():
             config[key] = coerce(key, value)
 
-# Layer 4 : APP_* OS Environment Variables
-env_mapping = {
-    "APP_PORT": "port",
-    "APP_WORKERS": "workers",
-    "APP_DEBUG": "debug",
-    "APP_LOG_LEVEL": "log_level",
-    "APP_API_KEY": "api_key",
-}
+    # Layer 3 : .env
+    if ENV_FILE.exists():
+        env_config = dotenv_values(ENV_FILE)
 
-for env_key, config_key in env_mapping.items():
-    value = os.getenv(env_key)
+        # Alias NUM_WORKERS -> workers
+        if "NUM_WORKERS" in env_config:
+            env_config["workers"] = env_config.pop("NUM_WORKERS")
 
-    if value is not None:
-        config[config_key] = coerce(config_key, value)
+        for key, value in env_config.items():
+            if value is not None:
+                config[key] = coerce(key, value)
 
-# Layer 5 : CLI overrides (?set=key=value)
-for item in set:
-    if "=" not in item:
-        continue
+    # Layer 4 : APP_* OS Environment Variables
+    env_mapping = {
+        "APP_PORT": "port",
+        "APP_WORKERS": "workers",
+        "APP_DEBUG": "debug",
+        "APP_LOG_LEVEL": "log_level",
+        "APP_API_KEY": "api_key",
+    }
 
-    key, value = item.split("=", 1)
-    config[key] = coerce(key, value)
+    for env_key, config_key in env_mapping.items():
+        value = os.getenv(env_key)
 
-# Secret masking
-config["api_key"] = "****"
+        if value is not None:
+            config[config_key] = coerce(config_key, value)
 
-return {
-    "port": config["port"],
-    "workers": config["workers"],
-    "debug": config["debug"],
-    "log_level": config["log_level"],
-    "api_key": config["api_key"],
-}
+    # Layer 5 : CLI overrides (?set=key=value)
+    for item in set:
+        if "=" not in item:
+            continue
+
+        key, value = item.split("=", 1)
+        config[key] = coerce(key, value)
+
+    # Secret masking
+    config["api_key"] = "****"
+
+    return {
+        "port": config["port"],
+        "workers": config["workers"],
+        "debug": config["debug"],
+        "log_level": config["log_level"],
+        "api_key": config["api_key"],
+    }

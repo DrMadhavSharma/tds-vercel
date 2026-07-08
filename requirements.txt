@@ -2,3 +2,5 @@ fastapi
 pandas
 numpy
 vercel
+pyjwt 
+cryptography

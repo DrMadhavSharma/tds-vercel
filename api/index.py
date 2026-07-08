@@ -42,7 +42,7 @@ class HeaderMiddleware(BaseHTTPMiddleware):
         # ---------------- Rate Limiting ----------------
         client = request.headers.get("X-Client-Id")
 
-        if client:
+        if client and request.url.path.startswith("/orders"):
             now = time.time()
 
             bucket = CLIENT_BUCKETS[client]

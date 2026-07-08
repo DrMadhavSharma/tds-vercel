@@ -1,3 +1,6 @@
+from prometheus_client import Counter, generate_latest, CONTENT_TYPE_LATEST
+from fastapi.responses import PlainTextResponse
+from collections import deque
 from fastapi import Header, HTTPException
 from fastapi import FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,12 +36,23 @@ class HeaderMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         start = time.perf_counter()
 
+        REQUEST_COUNTER.inc()
+
+        request_id = str(uuid.uuid4())
+
         response = await call_next(request)
 
         process_time = time.perf_counter() - start
 
-        response.headers["X-Request-ID"] = str(uuid.uuid4())
+        response.headers["X-Request-ID"] = request_id
         response.headers["X-Process-Time"] = f"{process_time:.6f}"
+
+        LOGS.append({
+            "level": "INFO",
+            "ts": time.time(),
+            "path": request.url.path,
+            "request_id": request_id,
+        })
 
         return response
 
@@ -66,6 +80,16 @@ dQIDAQAB
 -----END PUBLIC KEY-----
 """
 API_KEY = "ak_fjkk4xvbqfsfey6x07qpw5xy"
+
+START_TIME = time.time()
+
+REQUEST_COUNTER = Counter(
+    "http_requests_total",
+    "Total HTTP Requests"
+)
+
+LOGS = deque(maxlen=1000)
+
 class TokenRequest(BaseModel):
     token: str
 class Event(BaseModel):
@@ -272,3 +296,27 @@ async def analytics(
         "revenue": revenue,
         "top_user": top_user,
     }
+@app.get("/work")
+async def work(n: int = Query(...)):
+    for _ in range(n):
+        pass
+
+    return {
+        "email": "23f3004142@ds.study.iitm.ac.in",
+        "done": n,
+    }
+@app.get("/metrics")
+async def metrics_prometheus():
+    return PlainTextResponse(
+        generate_latest().decode(),
+        media_type=CONTENT_TYPE_LATEST,
+    )
+@app.get("/healthz")
+async def healthz():
+    return {
+        "status": "ok",
+        "uptime_s": time.time() - START_TIME,
+    }
+@app.get("/logs/tail")
+async def logs(limit: int = Query(10)):
+    return list(LOGS)[-limit:]

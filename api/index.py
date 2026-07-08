@@ -38,28 +38,33 @@ app.add_middleware(
 class HeaderMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         start = time.perf_counter()
+
+        # ---------------- Rate Limiting ----------------
         client = request.headers.get("X-Client-Id")
+
         if client:
-                 now = time.time()
+            now = time.time()
 
-                bucket = CLIENT_BUCKETS[client]
-            
-                while bucket and now - bucket[0] > WINDOW_SECONDS:
-                    bucket.popleft()
-            
-                if len(bucket) >= RATE_LIMIT:
-                    return JSONResponse(
-                        status_code=429,
-                        content={"detail": "Rate limit exceeded"},
-                        headers={
-                            "Retry-After": "10"
-                        }
-                    )
-            
-                bucket.append(now)
+            bucket = CLIENT_BUCKETS[client]
 
+            while bucket and now - bucket[0] > WINDOW_SECONDS:
+                bucket.popleft()
+
+            if len(bucket) >= RATE_LIMIT:
+                return JSONResponse(
+                    status_code=429,
+                    content={"detail": "Rate limit exceeded"},
+                    headers={
+                        "Retry-After": "10"
+                    },
+                )
+
+            bucket.append(now)
+
+        # ---------------- Metrics ----------------
         REQUEST_COUNTER.inc()
 
+        # ---------------- Request ID ----------------
         request_id = str(uuid.uuid4())
 
         response = await call_next(request)
@@ -69,6 +74,7 @@ class HeaderMiddleware(BaseHTTPMiddleware):
         response.headers["X-Request-ID"] = request_id
         response.headers["X-Process-Time"] = f"{process_time:.6f}"
 
+        # ---------------- Structured Logs ----------------
         LOGS.append({
             "level": "INFO",
             "ts": time.time(),
@@ -77,6 +83,7 @@ class HeaderMiddleware(BaseHTTPMiddleware):
         })
 
         return response
+
 
 app.add_middleware(HeaderMiddleware)
 

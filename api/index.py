@@ -1,6 +1,7 @@
 from prometheus_client import Counter, generate_latest, CONTENT_TYPE_LATEST
 from fastapi.responses import PlainTextResponse
 from collections import deque
+import redis
 from fastapi import Header, HTTPException
 from fastapi import FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -43,25 +44,24 @@ class HeaderMiddleware(BaseHTTPMiddleware):
         client = request.headers.get("X-Client-Id")
 
         if client and request.url.path.startswith("/orders"):
-            now = time.time()
-
-            bucket = CLIENT_BUCKETS[client]
-
-            while bucket and now - bucket[0] > WINDOW_SECONDS:
-                bucket.popleft()
-
-            if len(bucket) >= RATE_LIMIT:
+        
+            key = f"rate:{client}"
+        
+            current = redis_client.incr(key)
+        
+            if current == 1:
+                redis_client.expire(key, WINDOW_SECONDS)
+        
+            if current > RATE_LIMIT:
+                ttl = redis_client.ttl(key)
+        
                 return JSONResponse(
                     status_code=429,
                     content={"detail": "Rate limit exceeded"},
                     headers={
-                        "Retry-After": "10"
+                        "Retry-After": str(max(ttl, 1))
                     },
-                )
-
-            bucket.append(now)
-
-        # ---------------- Metrics ----------------
+                )        # ---------------- Metrics ----------------
         REQUEST_COUNTER.inc()
 
         # ---------------- Request ID ----------------
@@ -126,7 +126,13 @@ WINDOW_SECONDS = 10
 
 IDEMPOTENCY_STORE = {}
 
-CLIENT_BUCKETS = defaultdict(deque)
+import redis
+import os
+
+redis_client = redis.from_url(
+    os.getenv("REDIS_URL"),
+    decode_responses=True,
+)
 
 NEXT_ORDER_ID = 1
 

@@ -18,7 +18,7 @@ import yaml
 import os
 import time
 import uuid
-
+import requests
 from dotenv import dotenv_values
 from pathlib import Path
 
@@ -484,7 +484,7 @@ Problem:
         raise HTTPException(status_code=500, detail=response.text)
 
     data = response.json()
-
+    print(response.json())
     # Responses API output
     text = data["output"][0]["content"][0]["text"]
 

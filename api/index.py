@@ -11,7 +11,7 @@ from pydantic import BaseModel
 import base64
 from collections import defaultdict, deque
 from fastapi import Response
-
+from openai import OpenAI
 import jwt
 import json
 import numpy as np
@@ -26,11 +26,11 @@ from pathlib import Path
 app = FastAPI()
 
 # -------------------- CORS --------------------
-ALLOWED_ORIGIN = ["https://dash-jofexd.example.com","https://exam.sanand.workers.dev"]
+# ALLOWED_ORIGIN = ["https://dash-jofexd.example.com","https://exam.sanand.workers.dev"]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGIN,
+    allow_origins=["*"],
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
@@ -442,3 +442,38 @@ async def list_orders(
         "items": items,
         "next_cursor": next_cursor,
     }
+client = OpenAI()
+
+class ProblemRequest(BaseModel):
+    problem_id: str
+    problem: str
+
+@app.post("/solve")
+def solve(req: ProblemRequest):
+    response = client.responses.create(
+        model="gpt-5.5",
+        input=f"""
+Solve the following arithmetic word problem.
+
+Rules:
+- Return ONLY valid JSON.
+- JSON must contain exactly two keys:
+  - reasoning: string of at least 80 characters explaining the calculation.
+  - answer: integer (not a string or float).
+- Ignore irrelevant numbers.
+- Do not include markdown.
+
+Problem:
+{req.problem}
+"""
+    )
+
+    text = response.output_text.strip()
+    result = json.loads(text)
+
+    assert set(result.keys()) == {"reasoning", "answer"}
+    assert isinstance(result["reasoning"], str)
+    assert len(result["reasoning"]) >= 80
+    assert isinstance(result["answer"], int)
+
+    return result

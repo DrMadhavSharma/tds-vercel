@@ -625,7 +625,7 @@ async def analyze(req: AudioRequest):
     response = requests.post(
         "https://aipipe.org/openrouter/v1/responses",
         headers={
-            "Authorization": f"Bearer {AIPIPE_TOKEN}",
+            "Authorization": f"Bearer eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6IjIzZjMwMDQxNDJAZHMuc3R1ZHkuaWl0bS5hYy5pbiIsImlhdCI6MTc4MzcwMzQ0NiwiaXNzIjoiaHR0cHM6Ly9haXBpcGUub3JnIiwiYXVkIjoiYWlwaXBlLWFwaSIsImV4cCI6MTc4NDMwODI0Nn0.pNN9YGbM-wBzNS4WXKZS9VUjofm73nkABZ4vilCwf9U",
             "Content-Type": "application/json",
         },
         json={

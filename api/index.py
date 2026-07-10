@@ -558,7 +558,11 @@ async def rank(req: RankingRequest):
 class InvoiceRequest(BaseModel):
     document_id: str
     text: str
-    schema: dict
+    json_schema: dict = Field(alias="schema")
+
+    model_config = {
+        "populate_by_name": True
+    }
 
 
 @app.post("/extract")
@@ -591,7 +595,7 @@ async def extract(req: InvoiceRequest):
                 "format": {
                     "type": "json_schema",
                     "name": "invoice",
-                    "schema": req.schema
+                    "schema": req.json_schema
                 }
             }
         },

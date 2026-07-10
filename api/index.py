@@ -504,3 +504,53 @@ Problem:
         raise HTTPException(status_code=500, detail="Answer must be an integer")
 
     return result
+class RankingRequest(BaseModel):
+    query_id: str
+    query: str
+    candidates: list[str]
+
+@app.post("/rank")
+async def rank(req: RankingRequest):
+
+    response = requests.post(
+        "https://aipipe.org/openai/v1/embeddings",
+        headers={
+            "Authorization": f"Bearer {AIPIPE_TOKEN}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": "text-embedding-3-small",
+            "input": [req.query] + req.candidates
+        },
+        timeout=30,
+    )
+
+    if response.status_code != 200:
+        raise HTTPException(
+            status_code=500,
+            detail=response.text
+        )
+
+    data = response.json()["data"]
+
+    embeddings = [item["embedding"] for item in data]
+
+    query_embedding = np.array(embeddings[0])
+
+    scores = []
+
+    for emb in embeddings[1:]:
+        emb = np.array(emb)
+        score = np.dot(query_embedding, emb) / (
+            np.linalg.norm(query_embedding) *
+            np.linalg.norm(emb)
+        )
+        scores.append(float(score))
+
+    ranking = sorted(
+        range(len(scores)),
+        key=lambda i: scores[i],
+        reverse=True
+    )[:3]
+
+    return {"ranking": ranking}

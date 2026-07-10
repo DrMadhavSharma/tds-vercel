@@ -11,7 +11,6 @@ from pydantic import BaseModel
 import base64
 from collections import defaultdict, deque
 from fastapi import Response
-from openai import OpenAI
 import jwt
 import json
 import numpy as np
@@ -442,7 +441,6 @@ async def list_orders(
         "items": items,
         "next_cursor": next_cursor,
     }
-client = OpenAI()
 
 class ProblemRequest(BaseModel):
     problem_id: str

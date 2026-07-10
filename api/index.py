@@ -601,12 +601,16 @@ async def extract(req: InvoiceRequest):
         },
         timeout=30,
     )
-    print(response.status_code)
-    print(response.text)
-    return response.json()
+    # print(response.status_code)
+    # print(response.text)
+    # return response.json()
     if response.status_code != 200:
         raise HTTPException(500, response.text)
 
     data = response.json()
 
-    return data["output"][0]["content"][0]["parsed"]
+    import json
+
+    return json.loads(
+        response.json()["output"][0]["content"][0]["text"]
+    )

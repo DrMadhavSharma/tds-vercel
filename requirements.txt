@@ -8,3 +8,4 @@ PyYAML
 python-dotenv
 prometheus-client
 redis
+openai

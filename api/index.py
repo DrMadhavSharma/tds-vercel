@@ -448,32 +448,61 @@ class ProblemRequest(BaseModel):
     problem_id: str
     problem: str
 
+
 @app.post("/solve")
-def solve(req: ProblemRequest):
-    response = client.responses.create(
-        model="gpt-5.5",
-        input=f"""
-Solve the following arithmetic word problem.
+async def solve(req: ProblemRequest):
+    prompt = f"""
+You are solving an arithmetic word problem.
 
 Rules:
+- Ignore irrelevant numbers.
+- Compute the final integer answer.
 - Return ONLY valid JSON.
 - JSON must contain exactly two keys:
-  - reasoning: string of at least 80 characters explaining the calculation.
-  - answer: integer (not a string or float).
-- Ignore irrelevant numbers.
-- Do not include markdown.
+  {{
+    "reasoning": "at least 80 characters",
+    "answer": 123
+  }}
+- answer must be an integer.
 
 Problem:
 {req.problem}
 """
+
+    response = requests.post(
+        "https://aipipe.org/openrouter/v1/responses",
+        headers={
+            "Authorization": f"Bearer eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6IjIzZjMwMDQxNDJAZHMuc3R1ZHkuaWl0bS5hYy5pbiIsImlhdCI6MTc4MzcwMzQ0NiwiaXNzIjoiaHR0cHM6Ly9haXBpcGUub3JnIiwiYXVkIjoiYWlwaXBlLWFwaSIsImV4cCI6MTc4NDMwODI0Nn0.pNN9YGbM-wBzNS4WXKZS9VUjofm73nkABZ4vilCwf9U",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": "openai/gpt-4.1-nano",
+            "input": prompt,
+        },
+        timeout=30,
     )
 
-    text = response.output_text.strip()
-    result = json.loads(text)
+    if response.status_code != 200:
+        raise HTTPException(status_code=500, detail=response.text)
 
-    assert set(result.keys()) == {"reasoning", "answer"}
-    assert isinstance(result["reasoning"], str)
-    assert len(result["reasoning"]) >= 80
-    assert isinstance(result["answer"], int)
+    data = response.json()
+
+    # Responses API output
+    text = data["output"][0]["content"][0]["text"]
+
+    import json
+    try:
+        result = json.loads(text)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Model returned invalid JSON")
+
+    if set(result.keys()) != {"reasoning", "answer"}:
+        raise HTTPException(status_code=500, detail="Invalid JSON keys")
+
+    if not isinstance(result["reasoning"], str) or len(result["reasoning"]) < 80:
+        raise HTTPException(status_code=500, detail="Invalid reasoning")
+
+    if not isinstance(result["answer"], int):
+        raise HTTPException(status_code=500, detail="Answer must be an integer")
 
     return result

@@ -555,3 +555,52 @@ async def rank(req: RankingRequest):
     )[:3]
 
     return {"ranking": ranking}
+class InvoiceRequest(BaseModel):
+    document_id: str
+    text: str
+    schema: dict
+
+
+@app.post("/extract")
+async def extract(req: InvoiceRequest):
+
+    prompt = (
+        "Extract the invoice exactly according to the supplied JSON Schema. "
+        "Return ONLY valid JSON."
+    )
+
+    response = requests.post(
+        "https://aipipe.org/openrouter/v1/responses",
+        headers={
+            "Authorization": f"Bearer eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6IjIzZjMwMDQxNDJAZHMuc3R1ZHkuaWl0bS5hYy5pbiIsImlhdCI6MTc4MzcwMzQ0NiwiaXNzIjoiaHR0cHM6Ly9haXBpcGUub3JnIiwiYXVkIjoiYWlwaXBlLWFwaSIsImV4cCI6MTc4NDMwODI0Nn0.pNN9YGbM-wBzNS4WXKZS9VUjofm73nkABZ4vilCwf9U",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": "openai/gpt-4.1-mini",
+            "input": [
+                {
+                    "role": "system",
+                    "content": prompt
+                },
+                {
+                    "role": "user",
+                    "content": req.text
+                }
+            ],
+            "text": {
+                "format": {
+                    "type": "json_schema",
+                    "name": "invoice",
+                    "schema": req.schema
+                }
+            }
+        },
+        timeout=30,
+    )
+
+    if response.status_code != 200:
+        raise HTTPException(500, response.text)
+
+    data = response.json()
+
+    return data["output"][0]["content"][0]["parsed"]

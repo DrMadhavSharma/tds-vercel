@@ -614,3 +614,54 @@ async def extract(req: InvoiceRequest):
     return json.loads(
         response.json()["output"][0]["content"][0]["text"]
     )
+class AudioRequest(BaseModel):
+    audio_id: str
+    audio_base64: str
+
+
+@app.post("/analyze")
+async def analyze(req: AudioRequest):
+
+    response = requests.post(
+        "https://aipipe.org/openrouter/v1/responses",
+        headers={
+            "Authorization": f"Bearer {AIPIPE_TOKEN}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": "openai/gpt-4.1-mini",
+            "input": [
+                {
+                    "role": "system",
+                    "content": (
+                        "Analyze the supplied audio. "
+                        "Return ONLY valid JSON matching exactly the required schema."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": "Extract the dataset represented in this audio and compute all requested statistics."
+                        },
+                        {
+                            "type": "input_audio",
+                            "audio": req.audio_base64,
+                            "format": "wav"
+                        }
+                    ]
+                }
+            ]
+        },
+        timeout=60,
+    )
+
+    if response.status_code != 200:
+        raise HTTPException(500, response.text)
+
+    data = response.json()
+
+    return json.loads(
+        data["output"][0]["content"][0]["text"]
+    )

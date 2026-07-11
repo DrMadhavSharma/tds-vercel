@@ -670,9 +670,8 @@ class DynamicRequest(BaseModel):
     text: str
     input_schema: dict = Field(alias="schema")
 
-    model_config = {
-        "populate_by_name": True
-    }
+    class Config:
+        allow_population_by_field_name = True
 
 # -------------------- Type Mapping --------------------
 TYPE_MAP = {

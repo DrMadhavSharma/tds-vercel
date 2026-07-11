@@ -675,8 +675,31 @@ class DynamicRequest(BaseModel):
 
 @app.post("/dynamic-extract")
 async def dynamic_extract(req: DynamicRequest):
-    return {
-        "received": True,
-        "text": req.text,
-        "schema": req.input_schema
-    }
+
+    print("1. Reached endpoint")
+
+    try:
+        print("2. Schema =", req.input_schema)
+
+        properties = {}
+        required = []
+
+        for field, field_type in req.input_schema.items():
+            print("3.", field, field_type)
+
+            properties[field] = {
+                "type": "string"
+            }
+
+            required.append(field)
+
+        print("4. JSON schema built")
+
+        return {
+            "ok": True
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise

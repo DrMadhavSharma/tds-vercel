@@ -673,18 +673,10 @@ class DynamicRequest(BaseModel):
         allow_population_by_field_name = True
 
 
-TYPE_MAP = {
-    "string": "string",
-    "integer": "integer",
-    "float": "number",
-    "boolean": "boolean",
-    "date": "string",
-}
-
-
 @app.post("/dynamic-extract")
 async def dynamic_extract(req: DynamicRequest):
-
-    print("Reached endpoint")
-
-    return {"ok": True}
+    return {
+        "received": True,
+        "text": req.text,
+        "schema": req.input_schema
+    }

@@ -684,7 +684,7 @@ TYPE_MAP = {
 
 @app.post("/dynamic-extract")
 async def dynamic_extract(req: DynamicRequest):
-    return {
-        "text": req.text,
-        "schema": req.input_schema
-    }
+
+    print("Reached endpoint")
+
+    return {"ok": True}

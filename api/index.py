@@ -665,3 +665,99 @@ async def analyze(req: AudioRequest):
     return json.loads(
         data["output"][0]["content"][0]["text"]
     )
+# -------------------- Request Model --------------------
+class DynamicRequest(BaseModel):
+    text: str
+    input_schema: dict = Field(alias="schema")
+
+    model_config = {
+        "populate_by_name": True
+    }
+
+# -------------------- Type Mapping --------------------
+TYPE_MAP = {
+    "string": {"type": "string"},
+    "integer": {"type": "integer"},
+    "float": {"type": "number"},
+    "boolean": {"type": "boolean"},
+    "date": {
+        "type": "string",
+        "description": "Date in YYYY-MM-DD format"
+    }
+}
+
+# -------------------- Endpoint --------------------
+@app.post("/dynamic-extract")
+async def dynamic_extract(req: DynamicRequest):
+    try:
+        properties = {}
+        required = []
+
+        for field, field_type in req.input_schema.items():
+            properties[field] = TYPE_MAP.get(
+                field_type.lower(),
+                {"type": "string"}
+            )
+            required.append(field)
+
+        json_schema = {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": properties,
+            "required": required
+        }
+
+        response = requests.post(
+            "https://aipipe.org/openrouter/v1/responses",
+            headers={
+                "Authorization": f"Bearer eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6IjIzZjMwMDQxNDJAZHMuc3R1ZHkuaWl0bS5hYy5pbiIsImlhdCI6MTc4Mzc4MzU2NywiaXNzIjoiaHR0cHM6Ly9haXBpcGUub3JnIiwiYXVkIjoiYWlwaXBlLWFwaSIsImV4cCI6MTc4NDM4ODM2N30.MN0yxgPGlnohOuKYj_BQdtKZZp2WaPu7NH3rfBTFVGg",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "openai/gpt-4.1-mini",
+                "input": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "Extract the requested fields from the user's text. "
+                            "Return ONLY valid JSON. "
+                            "Return exactly the keys specified in the schema. "
+                            "Do not add extra keys. "
+                            "If a value cannot be extracted, return null. "
+                            "Dates must be formatted as YYYY-MM-DD. "
+                            "Integers and floats must be JSON numbers."
+                        )
+                    },
+                    {
+                        "role": "user",
+                        "content": req.text
+                    }
+                ],
+                "text": {
+                    "format": {
+                        "type": "json_schema",
+                        "name": "dynamic_extract",
+                        "schema": json_schema
+                    }
+                }
+            },
+            timeout=30
+        )
+
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=500,
+                detail=response.text
+            )
+
+        data = response.json()
+
+        return json.loads(
+            data["output"][0]["content"][0]["text"]
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )

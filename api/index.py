@@ -749,7 +749,7 @@ Text:
 """
 
         response = requests.post(
-            "https://aipipe.org/geminiv1beta/models/gemini-1.5-flash:generateContent",
+            "https://aipipe.org/geminiv1beta/models/gemini-flash-latest:generateContent",
             headers={
                 "Authorization": f"Bearer eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6IjIzZjMwMDQxNDJAZHMuc3R1ZHkuaWl0bS5hYy5pbiIsImlhdCI6MTc4Mzc4MzU2NywiaXNzIjoiaHR0cHM6Ly9haXBpcGUub3JnIiwiYXVkIjoiYWlwaXBlLWFwaSIsImV4cCI6MTc4NDM4ODM2N30.MN0yxgPGlnohOuKYj_BQdtKZZp2WaPu7NH3rfBTFVGg",
                 "Content-Type": "application/json",

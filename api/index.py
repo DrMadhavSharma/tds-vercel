@@ -474,7 +474,7 @@ Problem:
             "Content-Type": "application/json",
         },
         json={
-            "model": "openai/gpt-4.1-nano",
+            "model": "tencent/hy3:free",
             "input": prompt,
         },
         timeout=30,
@@ -486,7 +486,20 @@ Problem:
     data = response.json()
     print(response.json())
     # Responses API output
-    text = data["output"][0]["content"][0]["text"]
+    text = None
+
+    for item in data.get("output", []):
+        if item.get("type") == "message":
+            for content in item.get("content", []):
+                if content.get("type") == "output_text":
+                    text = content["text"]
+                    break
+    
+    if text is None:
+        raise HTTPException(
+            status_code=500,
+            detail="No output_text returned by model."
+        )
 
     import json
     try:
@@ -568,10 +581,29 @@ class InvoiceRequest(BaseModel):
 @app.post("/extract")
 async def extract(req: InvoiceRequest):
 
-    prompt = (
-        "Extract the invoice exactly according to the supplied JSON Schema. "
-        "Return ONLY valid JSON."
-    )
+    prompt = f"""
+    You are an invoice extraction engine.
+    
+    Return ONLY valid JSON.
+    
+    The JSON MUST exactly match this schema:
+    
+    {json.dumps(req.json_schema, indent=2)}
+    
+    Rules:
+    - Return exactly the schema keys.
+    - No extra keys.
+    - No markdown.
+    - No explanations.
+    - Use null if a value cannot be extracted.
+    - Preserve array order.
+    - Numbers must be JSON numbers.
+    - Booleans must be JSON booleans.
+    
+    Invoice:
+    
+    {req.text}
+    """
 
     response = requests.post(
         "https://aipipe.org/openrouter/v1/responses",
@@ -580,7 +612,7 @@ async def extract(req: InvoiceRequest):
             "Content-Type": "application/json",
         },
         json={
-            "model": "openai/gpt-4.1-mini",
+            "model": "tencent/hy3:free",
             "input": [
                 {
                     "role": "system",
@@ -590,14 +622,7 @@ async def extract(req: InvoiceRequest):
                     "role": "user",
                     "content": req.text
                 }
-            ],
-            "text": {
-                "format": {
-                    "type": "json_schema",
-                    "name": "invoice",
-                    "schema": req.json_schema
-                }
-            }
+            ]
         },
         timeout=30,
     )
@@ -611,9 +636,30 @@ async def extract(req: InvoiceRequest):
 
     import json
 
-    return json.loads(
-        response.json()["output"][0]["content"][0]["text"]
+    data = response.json()
+
+    text = None
+    
+    for item in data.get("output", []):
+        if item.get("type") == "message":
+            for content in item.get("content", []):
+                if content.get("type") == "output_text":
+                    text = content["text"]
+                    break
+    
+    if text is None:
+        raise HTTPException(
+            status_code=500,
+            detail="No output returned by model."
+        )
+    
+    text = (
+        text.replace("```json", "")
+            .replace("```", "")
+            .strip()
     )
+    
+    return json.loads(text)
 class AudioRequest(BaseModel):
     audio_id: str
     audio_base64: str

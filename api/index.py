@@ -728,20 +728,25 @@ async def dynamic_extract(req: DynamicRequest):
         }
 
         prompt = f"""
-Extract structured information.
+You are an information extraction engine.
+
+Extract information from the given text.
+
+Return ONLY valid JSON.
+
+The JSON MUST exactly match this schema:
+
+{json.dumps(json_schema, indent=2)}
 
 Rules:
-- Return ONLY JSON.
-- Return exactly the keys in the schema.
+- Return exactly the schema keys.
 - No extra keys.
+- No markdown.
+- No explanations.
 - Missing values -> null.
 - Dates -> YYYY-MM-DD.
 - Integers -> JSON integers.
 - Floats -> JSON numbers.
-
-Schema:
-
-{json.dumps(json_schema, indent=2)}
 
 Text:
 
@@ -749,26 +754,18 @@ Text:
 """
 
         response = requests.post(
-            "https://aipipe.org/geminiv1beta/models/gemini-1.5-flash:generateContent",
+            "https://aipipe.org/openrouter/v1/responses",
             headers={
-                "Authorization": f"Bearer eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6IjIzZjMwMDQxNDJAZHMuc3R1ZHkuaWl0bS5hYy5pbiIsImlhdCI6MTc4Mzc4MzU2NywiaXNzIjoiaHR0cHM6Ly9haXBpcGUub3JnIiwiYXVkIjoiYWlwaXBlLWFwaSIsImV4cCI6MTc4NDM4ODM2N30.MN0yxgPGlnohOuKYj_BQdtKZZp2WaPu7NH3rfBTFVGg",
+                "Authorization": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6IjIzZjMwMDQxNDJAZHMuc3R1ZHkuaWl0bS5hYy5pbiIsImlhdCI6MTc4Mzc4MzU2NywiaXNzIjoiaHR0cHM6Ly9haXBpcGUub3JnIiwiYXVkIjoiYWlwaXBlLWFwaSIsImV4cCI6MTc4NDM4ODM2N30.MN0yxgPGlnohOuKYj_BQdtKZZp2WaPu7NH3rfBTFVGg",
                 "Content-Type": "application/json",
             },
             json={
-                "contents": [
-                    {
-                        "parts": [
-                            {
-                                "text": prompt
-                            }
-                        ]
-                    }
-                ]
+                "model": "tencent/hy3:free",
+                "input": prompt
             },
             timeout=60,
         )
 
-        # -------- DEBUG --------
         print("Status:", response.status_code)
         print("Body:", response.text)
 
@@ -780,7 +777,20 @@ Text:
 
         data = response.json()
 
-        text = data["candidates"][0]["content"]["parts"][0]["text"]
+        text = None
+
+        for item in data.get("output", []):
+            if item.get("type") == "message":
+                for content in item.get("content", []):
+                    if content.get("type") == "output_text":
+                        text = content.get("text")
+                        break
+
+        if text is None:
+            raise HTTPException(
+                status_code=500,
+                detail="No output_text found in model response."
+            )
 
         text = (
             text.replace("```json", "")
@@ -788,14 +798,46 @@ Text:
                 .strip()
         )
 
-        try:
-            return json.loads(text)
+        print("Extracted JSON:", text)
 
+        try:
+            result = json.loads(text)
         except json.JSONDecodeError:
             raise HTTPException(
                 status_code=500,
                 detail=f"Model returned invalid JSON:\n{text}"
             )
+
+        # Ensure exact schema keys
+        output = {}
+
+        for field, field_type in req.input_schema.items():
+
+            value = result.get(field)
+
+            if value is None:
+                output[field] = None
+                continue
+
+            try:
+                ft = str(field_type).lower()
+
+                if ft == "integer":
+                    output[field] = int(value)
+
+                elif ft == "float":
+                    output[field] = float(value)
+
+                elif ft == "boolean":
+                    output[field] = bool(value)
+
+                else:
+                    output[field] = value
+
+            except Exception:
+                output[field] = None
+
+        return output
 
     except Exception as e:
         raise HTTPException(

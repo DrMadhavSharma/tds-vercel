@@ -462,8 +462,15 @@ Rules:
     "answer": 123
   }}
 - answer must be an integer.
-
-Problem:
+    Return ONLY the final JSON.
+    
+    Do not explain.
+    Do not think aloud.
+    Do not include intermediate reasoning.
+    Do not include markdown.
+    Do not include analysis.
+    Output exactly one JSON object.
+    Problem:
 {req.problem}
 """
 
@@ -476,6 +483,8 @@ Problem:
         json={
             "model": "tencent/hy3:free",
             "input": prompt,
+            "temperature": 0,
+            "max_output_tokens": 250
         },
         timeout=30,
     )
@@ -632,9 +641,6 @@ async def extract(req: InvoiceRequest):
     if response.status_code != 200:
         raise HTTPException(500, response.text)
 
-    data = response.json()
-
-    import json
 
     data = response.json()
 

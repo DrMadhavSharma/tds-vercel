@@ -34,7 +34,7 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
-client = genai.Client(api_key="AIzaSyCSMRRFtVsEwtXCP7ritqDQ60ZKig8k814")
+client = genai.Client(api_key="AQ.Ab8RN6IkjcC2Xz-Tl6cr_e4As2xzQ5vX2gKoKfprM1fyKg6c3A")
 # -------------------- Custom Headers --------------------
 class HeaderMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):

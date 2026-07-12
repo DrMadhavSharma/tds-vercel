@@ -694,15 +694,19 @@ async def dynamic_extract(req: DynamicRequest):
             required.append(field)
 
         print("4. JSON schema built")
-
         print("5. Before requests.post")
 
-response = requests.post(
-    "https://httpbin.org/post",
-    json={"hello": "world"},
-    timeout=10,
-)
+        response = requests.post(
+            "https://httpbin.org/post",
+            json={"hello": "world"},
+            timeout=10,
+        )
 
-print("6. Status:", response.status_code)
+        print("6. Status:", response.status_code)
 
-return response.json()
+        return response.json()
+
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        raise

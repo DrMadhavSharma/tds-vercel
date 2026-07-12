@@ -21,7 +21,8 @@ import uuid
 import requests
 from dotenv import dotenv_values
 from pathlib import Path
-
+from google import genai
+from google.genai import types
 app = FastAPI()
 
 # -------------------- CORS --------------------
@@ -33,7 +34,7 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
-
+client = genai.Client("AQ.Ab8RN6LXwQTqvw2XYsx9EaV-wjlPur2dEAmviHgc_yCe_RyvZA")
 # -------------------- Custom Headers --------------------
 class HeaderMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -447,85 +448,134 @@ class ProblemRequest(BaseModel):
     problem: str
 
 
+# @app.post("/solve")
+# async def solve(req: ProblemRequest):
+#     prompt = f"""
+# You are solving an arithmetic word problem.
+
+# Rules:
+# - Ignore irrelevant numbers.
+# - Compute the final integer answer.
+# - Return ONLY valid JSON.
+# - JSON must contain exactly two keys:
+#   {{
+#     "reasoning": "at least 80 characters",
+#     "answer": 123
+#   }}
+# - answer must be an integer.
+#     Return ONLY the final JSON.
+    
+#     Do not explain.
+#     Do not think aloud.
+#     Do not include intermediate reasoning.
+#     Do not include markdown.
+#     Do not include analysis.
+#     Output exactly one JSON object.
+#     Problem:
+# {req.problem}
+# """
+
+#     response = requests.post(
+#         "https://aipipe.org/openrouter/v1/responses",
+#         headers={
+#             "Authorization": f"Bearer eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6IjIzZjMwMDQxNDJAZHMuc3R1ZHkuaWl0bS5hYy5pbiIsImlhdCI6MTc4MzcwMzQ0NiwiaXNzIjoiaHR0cHM6Ly9haXBpcGUub3JnIiwiYXVkIjoiYWlwaXBlLWFwaSIsImV4cCI6MTc4NDMwODI0Nn0.pNN9YGbM-wBzNS4WXKZS9VUjofm73nkABZ4vilCwf9U",
+#             "Content-Type": "application/json",
+#         },
+#         json={
+#             "model": "tencent/hy3:free",
+#             "input": prompt,
+#             "temperature": 0,
+#             "max_output_tokens": 250
+#         },
+#         timeout=30,
+#     )
+
+#     if response.status_code != 200:
+#         raise HTTPException(status_code=500, detail=response.text)
+
+#     data = response.json()
+#     print(response.json())
+#     # Responses API output
+#     text = None
+
+#     for item in data.get("output", []):
+#         if item.get("type") == "message":
+#             for content in item.get("content", []):
+#                 if content.get("type") == "output_text":
+#                     text = content["text"]
+#                     break
+    
+#     if text is None:
+#         raise HTTPException(
+#             status_code=500,
+#             detail="No output_text returned by model."
+#         )
+
+#     import json
+#     try:
+#         result = json.loads(text)
+#     except Exception:
+#         raise HTTPException(status_code=500, detail="Model returned invalid JSON")
+
+#     if set(result.keys()) != {"reasoning", "answer"}:
+#         raise HTTPException(status_code=500, detail="Invalid JSON keys")
+
+#     if not isinstance(result["reasoning"], str) or len(result["reasoning"]) < 80:
+#         raise HTTPException(status_code=500, detail="Invalid reasoning")
+
+#     if not isinstance(result["answer"], int):
+#         raise HTTPException(status_code=500, detail="Answer must be an integer")
+
+#     return result
+
+
 @app.post("/solve")
 async def solve(req: ProblemRequest):
-    prompt = f"""
-You are solving an arithmetic word problem.
 
-Rules:
-- Ignore irrelevant numbers.
-- Compute the final integer answer.
-- Return ONLY valid JSON.
-- JSON must contain exactly two keys:
-  {{
-    "reasoning": "at least 80 characters",
-    "answer": 123
-  }}
-- answer must be an integer.
-    Return ONLY the final JSON.
-    
-    Do not explain.
-    Do not think aloud.
-    Do not include intermediate reasoning.
-    Do not include markdown.
-    Do not include analysis.
-    Output exactly one JSON object.
-    Problem:
-{req.problem}
-"""
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=req.problem,
+        config=types.GenerateContentConfig(
+            temperature=0,
+            system_instruction="""
+You are solving arithmetic word problems.
 
-    response = requests.post(
-        "https://aipipe.org/openrouter/v1/responses",
-        headers={
-            "Authorization": f"Bearer eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6IjIzZjMwMDQxNDJAZHMuc3R1ZHkuaWl0bS5hYy5pbiIsImlhdCI6MTc4MzcwMzQ0NiwiaXNzIjoiaHR0cHM6Ly9haXBpcGUub3JnIiwiYXVkIjoiYWlwaXBlLWFwaSIsImV4cCI6MTc4NDMwODI0Nn0.pNN9YGbM-wBzNS4WXKZS9VUjofm73nkABZ4vilCwf9U",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": "tencent/hy3:free",
-            "input": prompt,
-            "temperature": 0,
-            "max_output_tokens": 250
-        },
-        timeout=30,
+Ignore irrelevant numbers.
+
+Return only the final answer and a brief explanation.
+
+Do not use markdown.
+""",
+            response_mime_type="application/json",
+            response_json_schema={
+                "type": "object",
+                "properties": {
+                    "reasoning": {
+                        "type": "string"
+                    },
+                    "answer": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "reasoning",
+                    "answer"
+                ],
+                "additionalProperties": False
+            }
+        )
     )
 
-    if response.status_code != 200:
-        raise HTTPException(status_code=500, detail=response.text)
+    result = json.loads(response.text)
 
-    data = response.json()
-    print(response.json())
-    # Responses API output
-    text = None
-
-    for item in data.get("output", []):
-        if item.get("type") == "message":
-            for content in item.get("content", []):
-                if content.get("type") == "output_text":
-                    text = content["text"]
-                    break
-    
-    if text is None:
+    if len(result["reasoning"]) < 80:
         raise HTTPException(
             status_code=500,
-            detail="No output_text returned by model."
+            detail="Reasoning too short"
         )
 
-    import json
-    try:
-        result = json.loads(text)
-    except Exception:
-        raise HTTPException(status_code=500, detail="Model returned invalid JSON")
-
-    if set(result.keys()) != {"reasoning", "answer"}:
-        raise HTTPException(status_code=500, detail="Invalid JSON keys")
-
-    if not isinstance(result["reasoning"], str) or len(result["reasoning"]) < 80:
-        raise HTTPException(status_code=500, detail="Invalid reasoning")
-
-    if not isinstance(result["answer"], int):
-        raise HTTPException(status_code=500, detail="Answer must be an integer")
-
     return result
+
 class RankingRequest(BaseModel):
     query_id: str
     query: str
@@ -587,85 +637,116 @@ class InvoiceRequest(BaseModel):
     }
 
 
+# @app.post("/extract")
+# async def extract(req: InvoiceRequest):
+
+#     prompt = f"""
+#     You are an invoice extraction engine.
+    
+#     Return ONLY valid JSON.
+    
+#     The JSON MUST exactly match this schema:
+    
+#     {json.dumps(req.json_schema, indent=2)}
+    
+#     Rules:
+#     - Return exactly the schema keys.
+#     - No extra keys.
+#     - No markdown.
+#     - No explanations.
+#     - Use null if a value cannot be extracted.
+#     - Preserve array order.
+#     - Numbers must be JSON numbers.
+#     - Booleans must be JSON booleans.
+    
+#     Invoice:
+    
+#     {req.text}
+#     """
+
+#     response = requests.post(
+#         "https://aipipe.org/openrouter/v1/responses",
+#         headers={
+#             "Authorization": f"Bearer eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6IjIzZjMwMDQxNDJAZHMuc3R1ZHkuaWl0bS5hYy5pbiIsImlhdCI6MTc4MzcwMzQ0NiwiaXNzIjoiaHR0cHM6Ly9haXBpcGUub3JnIiwiYXVkIjoiYWlwaXBlLWFwaSIsImV4cCI6MTc4NDMwODI0Nn0.pNN9YGbM-wBzNS4WXKZS9VUjofm73nkABZ4vilCwf9U",
+#             "Content-Type": "application/json",
+#         },
+#         json={
+#             "model": "tencent/hy3:free",
+#             "input": [
+#                 {
+#                     "role": "system",
+#                     "content": prompt
+#                 },
+#                 {
+#                     "role": "user",
+#                     "content": req.text
+#                 }
+#             ]
+#         },
+#         timeout=30,
+#     )
+#     # print(response.status_code)
+#     # print(response.text)
+#     # return response.json()
+#     if response.status_code != 200:
+#         raise HTTPException(500, response.text)
+
+
+#     data = response.json()
+
+#     text = None
+    
+#     for item in data.get("output", []):
+#         if item.get("type") == "message":
+#             for content in item.get("content", []):
+#                 if content.get("type") == "output_text":
+#                     text = content["text"]
+#                     break
+    
+#     if text is None:
+#         raise HTTPException(
+#             status_code=500,
+#             detail="No output returned by model."
+#         )
+    
+#     text = (
+#         text.replace("```json", "")
+#             .replace("```", "")
+#             .strip()
+#     )
+    
+#     return json.loads(text)
+
+
 @app.post("/extract")
 async def extract(req: InvoiceRequest):
 
-    prompt = f"""
-    You are an invoice extraction engine.
-    
-    Return ONLY valid JSON.
-    
-    The JSON MUST exactly match this schema:
-    
-    {json.dumps(req.json_schema, indent=2)}
-    
-    Rules:
-    - Return exactly the schema keys.
-    - No extra keys.
-    - No markdown.
-    - No explanations.
-    - Use null if a value cannot be extracted.
-    - Preserve array order.
-    - Numbers must be JSON numbers.
-    - Booleans must be JSON booleans.
-    
-    Invoice:
-    
-    {req.text}
-    """
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=req.text,
+        config=types.GenerateContentConfig(
+            system_instruction="""
+You are an invoice extraction engine.
 
-    response = requests.post(
-        "https://aipipe.org/openrouter/v1/responses",
-        headers={
-            "Authorization": f"Bearer eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6IjIzZjMwMDQxNDJAZHMuc3R1ZHkuaWl0bS5hYy5pbiIsImlhdCI6MTc4MzcwMzQ0NiwiaXNzIjoiaHR0cHM6Ly9haXBpcGUub3JnIiwiYXVkIjoiYWlwaXBlLWFwaSIsImV4cCI6MTc4NDMwODI0Nn0.pNN9YGbM-wBzNS4WXKZS9VUjofm73nkABZ4vilCwf9U",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": "tencent/hy3:free",
-            "input": [
-                {
-                    "role": "system",
-                    "content": prompt
-                },
-                {
-                    "role": "user",
-                    "content": req.text
-                }
-            ]
-        },
-        timeout=30,
-    )
-    # print(response.status_code)
-    # print(response.text)
-    # return response.json()
-    if response.status_code != 200:
-        raise HTTPException(500, response.text)
+Extract information from the invoice.
 
+Return only valid JSON matching the supplied schema.
 
-    data = response.json()
+Missing values must be null.
 
-    text = None
-    
-    for item in data.get("output", []):
-        if item.get("type") == "message":
-            for content in item.get("content", []):
-                if content.get("type") == "output_text":
-                    text = content["text"]
-                    break
-    
-    if text is None:
-        raise HTTPException(
-            status_code=500,
-            detail="No output returned by model."
+No markdown.
+No explanations.
+No extra keys.
+""",
+            response_mime_type="application/json",
+            response_json_schema=req.json_schema,
+            temperature=0,
         )
-    
-    text = (
-        text.replace("```json", "")
-            .replace("```", "")
-            .strip()
     )
-    
-    return json.loads(text)
+
+    return json.loads(response.text)
+
+
 class AudioRequest(BaseModel):
     audio_id: str
     audio_base64: str

@@ -733,7 +733,9 @@ You are an information extraction engine.
 Extract information from the given text.
 
 Return ONLY valid JSON.
-
+If a schema field name contains "time" (e.g. alert_time, start_time, end_time),
+return ONLY the time in HH:MM format.
+Do NOT include the date.
 The JSON MUST exactly match this schema:
 
 {json.dumps(json_schema, indent=2)}

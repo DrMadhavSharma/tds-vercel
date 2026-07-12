@@ -673,40 +673,132 @@ class DynamicRequest(BaseModel):
         allow_population_by_field_name = True
 
 
+TYPE_MAP = {
+    "string": "string",
+    "integer": "integer",
+    "float": "number",
+    "boolean": "boolean",
+    "date": "string",
+    "array[string]": {
+        "type": "array",
+        "items": {"type": "string"}
+    },
+    "array[integer]": {
+        "type": "array",
+        "items": {"type": "integer"}
+    }
+}
+
+
 @app.post("/dynamic-extract")
 async def dynamic_extract(req: DynamicRequest):
 
-    print("1. Reached endpoint")
-
     try:
-        print("2. Schema =", req.input_schema)
 
         properties = {}
         required = []
 
         for field, field_type in req.input_schema.items():
-            print("3.", field, field_type)
 
-            properties[field] = {
-                "type": "string"
-            }
+            field_type = str(field_type).lower()
+
+            if field_type == "date":
+                properties[field] = {
+                    "type": "string",
+                    "description": "YYYY-MM-DD"
+                }
+
+            elif field_type.startswith("array"):
+
+                properties[field] = TYPE_MAP[field_type]
+
+            else:
+
+                properties[field] = {
+                    "type": TYPE_MAP.get(field_type, "string")
+                }
 
             required.append(field)
 
-        print("4. JSON schema built")
-        print("5. Before requests.post")
+        json_schema = {
+            "type": "object",
+            "properties": properties,
+            "required": required,
+            "additionalProperties": False
+        }
+
+        prompt = f"""
+Extract structured information.
+
+Rules:
+- Return ONLY JSON.
+- Return exactly the keys in the schema.
+- No extra keys.
+- Missing values -> null.
+- Dates -> YYYY-MM-DD.
+- Integers -> JSON integers.
+- Floats -> JSON numbers.
+
+Schema:
+
+{json.dumps(json_schema, indent=2)}
+
+Text:
+
+{req.text}
+"""
 
         response = requests.post(
-            "https://httpbin.org/post",
-            json={"hello": "world"},
-            timeout=10,
+            "https://aipipe.org/geminiv1beta/models/gemini-1.5-flash:generateContent",
+            headers={
+                "Authorization": f"Bearer {AIPIPE_TOKEN}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "contents": [
+                    {
+                        "parts": [
+                            {
+                                "text": prompt
+                            }
+                        ]
+                    }
+                ]
+            },
+            timeout=60,
         )
 
-        print("6. Status:", response.status_code)
+        # -------- DEBUG --------
+        print("Status:", response.status_code)
+        print("Body:", response.text)
 
-        return response.json()
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=response.text
+            )
 
-    except Exception:
-        import traceback
-        traceback.print_exc()
-        raise
+        data = response.json()
+
+        text = data["candidates"][0]["content"]["parts"][0]["text"]
+
+        text = (
+            text.replace("```json", "")
+                .replace("```", "")
+                .strip()
+        )
+
+        try:
+            return json.loads(text)
+
+        except json.JSONDecodeError:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Model returned invalid JSON:\n{text}"
+            )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
